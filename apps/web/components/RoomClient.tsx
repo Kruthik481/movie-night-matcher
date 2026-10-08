@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { loadSession, saveSession } from '@/lib/session';
+import { ProjectorBeams } from './cinema/ProjectorBeams';
 import { JoinRoomForm } from './JoinRoomForm';
 import { RoomScreen } from './RoomScreen';
 
@@ -10,7 +11,8 @@ export default function RoomClient({ code }: { code: string }) {
 
   if (!token) {
     return (
-      <main className="mx-auto max-w-md px-4 py-12">
+      <main className="relative isolate mx-auto max-w-md px-4 py-14">
+        <ProjectorBeams />
         <JoinRoomForm
           initialCode={code}
           onJoined={(joinedCode, joinedToken) => {

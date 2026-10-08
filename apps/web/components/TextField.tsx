@@ -1,14 +1,19 @@
 import type { InputHTMLAttributes } from 'react';
+import { cn } from '@/lib/utils';
 
 type Props = { label: string } & InputHTMLAttributes<HTMLInputElement>;
 
-export function TextField({ label, className = '', ...input }: Props) {
+/** Input printed on ticket paper. */
+export function TextField({ label, className, ...input }: Props) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm text-zinc-400">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-paper-ink/70">{label}</span>
       <input
         {...input}
-        className={`w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100 outline-none transition focus:border-amber-400 ${className}`}
+        className={cn(
+          'w-full rounded-xl border border-paper-ink/20 bg-white/45 px-4 py-3 text-base text-paper-ink outline-none transition placeholder:text-paper-ink/40 focus:border-curtain focus:bg-white/70 focus:ring-2 focus:ring-marquee/60',
+          className,
+        )}
       />
     </label>
   );

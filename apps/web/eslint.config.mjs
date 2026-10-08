@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // vendored Bklit registry code (shadcn add @bklit/bar-chart); updated by re-running the add, not hand-edited
+    "components/charts/**",
   ]),
 ]);
 

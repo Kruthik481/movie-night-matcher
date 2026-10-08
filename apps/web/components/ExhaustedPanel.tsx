@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { MarqueeButton } from './cinema/MarqueeButton';
+import { ReelLoader } from './cinema/ReelLoader';
+import { Ticket } from './cinema/Ticket';
 
 export function ExhaustedPanel({ isHost, onRestart }: { isHost: boolean; onRestart: () => Promise<void> }) {
   const [isLoading, setIsLoading] = useState(false);
@@ -12,20 +15,23 @@ export function ExhaustedPanel({ isHost, onRestart }: { isHost: boolean; onResta
   }
 
   return (
-    <section className="space-y-4 py-16 text-center">
-      <h2 className="text-2xl font-semibold">No match this round</h2>
-      {isHost ? (
-        <button
-          type="button"
-          onClick={restart}
-          disabled={isLoading}
-          className="rounded-lg bg-amber-400 px-6 py-2.5 font-medium text-zinc-950 hover:bg-amber-300 disabled:opacity-60"
-        >
-          {isLoading ? 'Loading…' : 'Load 20 more'}
-        </button>
-      ) : (
-        <p className="text-zinc-400">Waiting for the host to load more movies…</p>
-      )}
+    <section className="py-8">
+      <Ticket stub={<><span>Intermission</span><span>No match yet</span></>}>
+        <h2 className="font-display text-5xl font-extrabold leading-none text-paper-ink">Intermission</h2>
+        <p className="mt-2 text-paper-ink/70">Nobody liked the same movie in this batch. Grab a snack, then try the next reel.</p>
+        <div className="mt-6">
+          {isHost ? (
+            <MarqueeButton type="button" tone="ink" onClick={restart} disabled={isLoading} className="w-full">
+              {isLoading ? 'Loading…' : 'Load 20 more'}
+            </MarqueeButton>
+          ) : (
+            <p className="flex items-center gap-3 text-paper-ink/70">
+              <ReelLoader className="size-6" />
+              Waiting for the host to load more movies…
+            </p>
+          )}
+        </div>
+      </Ticket>
     </section>
   );
 }

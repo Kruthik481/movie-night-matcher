@@ -1,5 +1,181 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is(.dark *));
+
+/* Midnight Cinema: velvet house, cream ticket paper, marquee bulbs */
 :root {
   color-scheme: dark;
+  --velvet: #1b0b12;
+  --curtain: #3a1220;
+  --marquee: #f6b73c;
+  --tungsten: #ffe7b8;
+  --paper: #ede0c8;
+  --paper-ink: #2a1418;
+  --exit: #e5484d;
+  --cream: #f3e6d3;
+
+  /* Bklit chart tokens, tuned to the house palette */
+  --chart-1: var(--marquee);
+  --chart-2: #c9853a;
+  --chart-3: #8f4a3a;
+  --chart-4: #5e2a33;
+  --chart-5: #3a1220;
+  --chart-background: transparent;
+  --chart-foreground: #c9b49a;
+  --chart-foreground-muted: #8c7462;
+  --chart-line-primary: var(--marquee);
+  --chart-line-secondary: #c9853a;
+  --chart-crosshair: #c9b49a;
+  --chart-grid: rgb(243 230 211 / 0.08);
+  --chart-brush-border: var(--chart-grid);
+  --chart-tooltip-background: rgb(27 11 18 / 0.92);
+  --chart-tooltip-foreground: var(--cream);
+  --chart-tooltip-muted: #c9b49a;
+  --chart-marker-background: var(--curtain);
+  --chart-marker-border: #5e2a33;
+  --chart-marker-foreground: var(--cream);
+  --chart-label: #c9b49a;
+  --chart-scale-01: #3a1220;
+  --chart-scale-02: #5e2a33;
+  --chart-scale-03: #8f4a3a;
+  --chart-scale-04: #c9853a;
+  --chart-scale-05: #f6b73c;
+  --chart-scale-pattern-color: var(--velvet);
+}
+
+@theme inline {
+  --font-display: var(--font-marquee);
+  --font-sans: var(--font-body);
+
+  --color-velvet: var(--velvet);
+  --color-curtain: var(--curtain);
+  --color-marquee: var(--marquee);
+  --color-tungsten: var(--tungsten);
+  --color-paper: var(--paper);
+  --color-paper-ink: var(--paper-ink);
+  --color-exit: var(--exit);
+  --color-cream: var(--cream);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-background: var(--chart-background);
+  --color-chart-foreground: var(--chart-foreground);
+  --color-chart-foreground-muted: var(--chart-foreground-muted);
+  --color-chart-crosshair: var(--chart-crosshair);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-tooltip-background: var(--chart-tooltip-background);
+  --color-chart-tooltip-foreground: var(--chart-tooltip-foreground);
+  --color-chart-tooltip-muted: var(--chart-tooltip-muted);
+  --color-chart-marker-background: var(--chart-marker-background);
+  --color-chart-marker-border: var(--chart-marker-border);
+  --color-chart-marker-foreground: var(--chart-marker-foreground);
+  --color-chart-label: var(--chart-label);
+  --color-chart-scale-01: var(--chart-scale-01);
+  --color-chart-scale-02: var(--chart-scale-02);
+  --color-chart-scale-03: var(--chart-scale-03);
+  --color-chart-scale-04: var(--chart-scale-04);
+  --color-chart-scale-05: var(--chart-scale-05);
+  --color-chart-scale-pattern-color: var(--chart-scale-pattern-color);
+}
+
+html {
+  background: var(--velvet);
+  overflow-x: clip;
+}
+
+body {
+  overflow-x: clip;
+  background:
+    radial-gradient(120% 70% at 50% -10%, rgb(246 183 60 / 0.10), transparent 60%),
+    radial-gradient(90% 60% at 50% 120%, rgb(58 18 32 / 0.9), transparent 70%),
+    var(--velvet);
+  color: var(--cream);
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--marquee);
+  color: var(--velvet);
+}
+
+:focus-visible {
+  outline: 2px solid var(--marquee);
+  outline-offset: 3px;
+}
+
+/* Film grain: one SVG noise tile, nudged around so it never looks static */
+.grain {
+  pointer-events: none;
+  position: fixed;
+  inset: -50%;
+  z-index: 50;
+  opacity: 0.07;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain 0.9s steps(6) infinite;
+}
+
+@keyframes grain {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-3%, 2%); }
+  40% { transform: translate(2%, -4%); }
+  60% { transform: translate(-4%, 3%); }
+  80% { transform: translate(3%, 1%); }
+  100% { transform: translate(0, 0); }
+}
+
+.vignette {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: radial-gradient(ellipse at center, transparent 55%, rgb(8 3 6 / 0.75) 100%);
+}
+
+/* Ticket paper: perforated notches cut into both sides */
+.ticket {
+  --notch: 14px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.35), transparent 35%),
+    var(--paper);
+  color: var(--paper-ink);
+  -webkit-mask:
+    radial-gradient(circle var(--notch) at 0 var(--notch-y, 72px), transparent 98%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch) at 100% var(--notch-y, 72px), transparent 98%, #000) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle var(--notch) at 0 var(--notch-y, 72px), transparent 98%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch) at 100% var(--notch-y, 72px), transparent 98%, #000) right / 51% 100% no-repeat;
+  box-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.8);
+}
+
+.perforation {
+  background-image: radial-gradient(circle, rgb(42 20 24 / 0.35) 1.5px, transparent 2px);
+  background-size: 10px 4px;
+  background-repeat: repeat-x;
+  height: 4px;
+}
+
+.bulb {
+  background: radial-gradient(circle at 35% 35%, #fff6dc, var(--marquee) 55%, #b5701c);
+  box-shadow: 0 0 6px 1px rgb(246 183 60 / 0.9), 0 0 18px 4px rgb(246 183 60 / 0.35);
+}
+
+.bulb-off {
+  background: #4a2a1c;
+  box-shadow: none;
+}
+
+@keyframes reel {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grain { animation: none; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
