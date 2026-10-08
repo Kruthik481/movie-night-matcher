@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: mnm
+          POSTGRES_PASSWORD: mnm
+          POSTGRES_DB: mnm_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U mnm"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgresql://mnm:mnm@localhost:5433/mnm_test
+      E2E_DATABASE_URL: postgresql://mnm:mnm@localhost:5433/mnm_test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test:coverage -w @mnm/api
+      - run: npm test -w @mnm/shared
+      - run: npm test -w @mnm/web
+      - run: npx -w @mnm/web playwright install --with-deps chromium
+      - run: npm run e2e -w @mnm/web
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
