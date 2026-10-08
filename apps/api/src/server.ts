@@ -1,26 +1,20 @@
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
-import {
-  type ClientToServerEvents,
-  CreateRoomBodySchema,
-  JoinRoomBodySchema,
-  RegionSchema,
-  RoomCodeSchema,
-  type ServerToClientEvents,
-} from '@mnm/shared';
+import { CreateRoomBodySchema, JoinRoomBodySchema, RegionSchema, RoomCodeSchema } from '@mnm/shared';
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import { Server } from 'socket.io';
 import { z, ZodError } from 'zod';
 import type { PrismaClient } from './db';
 import { AppError } from './errors';
+import { attachRealtime, type IO } from './realtime/gateway';
 import { createRoomService, type RoomService } from './rooms/service';
-import type { SessionClaims, TokenService } from './rooms/token';
+import type { TokenService } from './rooms/token';
 import { createSwipeService, type SwipeService } from './swipes/service';
 import type { TmdbClient } from './tmdb/client';
 
 const DEFAULT_RATE_LIMIT_MAX = 20;
 
-export type IO = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SessionClaims>;
+export type { IO } from './realtime/gateway';
 
 export type ServerDeps = {
   prisma: PrismaClient;
@@ -85,7 +79,16 @@ export async function createServer(deps: ServerDeps) {
   });
 
   const io: IO = new Server(app.server, { cors: { origin: webOrigin } });
+  const realtime = attachRealtime(io, {
+    tokens,
+    rooms,
+    swipes,
+    logger: app.log,
+    graceMs: deps.graceMs,
+    swipesPerSecond: deps.swipesPerSecond,
+  });
   app.addHook('preClose', async () => {
+    realtime.close();
     io.disconnectSockets(true);
   });
 
