@@ -1,6 +1,6 @@
 import type { RoomState } from '@mnm/shared';
 import { describe, expect, it } from 'vitest';
-import { initialRoomView, RESYNC_CODES, roomReducer, type RoomView } from './roomReducer';
+import { initialRoomView, RESYNC_CODES, roomReducer, type RoomView, shouldResync } from './roomReducer';
 
 const state = (overrides: Partial<RoomState> = {}): RoomState => ({
   code: 'ABCDEF',
@@ -56,6 +56,20 @@ describe('roomReducer', () => {
     const open = roomReducer(initialRoomView, { type: 'connection', connection: 'open' });
     expect(open.connection).toBe('open');
     expect(roomReducer(open, { type: 'error', message: 'oops' }).error).toBe('oops');
+  });
+});
+
+describe('shouldResync', () => {
+  it('always resyncs after a failed swipe, since the client already advanced', () => {
+    expect(shouldResync('swipe', 'RATE_LIMITED')).toBe(true);
+    expect(shouldResync('swipe', 'INTERNAL')).toBe(true);
+    expect(shouldResync('swipe', null)).toBe(true);
+  });
+
+  it('resyncs other actions only for stale-view codes', () => {
+    expect(shouldResync('other', 'NOT_IN_DECK')).toBe(true);
+    expect(shouldResync('other', 'NOT_HOST')).toBe(false);
+    expect(shouldResync('other', null)).toBe(false);
   });
 });
 

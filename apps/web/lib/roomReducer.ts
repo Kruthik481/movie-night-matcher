@@ -21,7 +21,15 @@ export type RoomAction =
 /** Server error codes meaning "your view is stale": refetch the snapshot instead of showing an error. */
 export const RESYNC_CODES: ReadonlySet<string> = new Set(['NOT_IN_DECK', 'OUT_OF_ORDER', 'ROOM_NOT_SWIPING', 'MEMBER_INACTIVE']);
 
-export const initialRoomView: RoomView = { state: null, progress: {}, connection: 'connecting', error: null };
+/**
+ * A failed swipe always resyncs: the client already advanced optimistically, and on the last card no later
+ * swipe would surface the drift, leaving the room waiting forever. `code` is null when the ack timed out.
+ */
+export function shouldResync(action: 'swipe' | 'other', code: string | null): boolean {
+  return action === 'swipe' || (code !== null && RESYNC_CODES.has(code));
+}
+
+export const initialRoomView: RoomView ={ state: null, progress: {}, connection: 'connecting', error: null };
 
 const sameDeck = (a: number[] | undefined, b: number[]) => a?.length === b.length && a.every((id, i) => id === b[i]);
 

@@ -4,7 +4,7 @@ import type { Ack, ClientToServerEvents, RoomState, ServerToClientEvents } from 
 import { useEffect, useMemo, useReducer, useRef } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { API_URL } from './api';
-import { initialRoomView, RESYNC_CODES, roomReducer } from './roomReducer';
+import { initialRoomView, RESYNC_CODES, roomReducer, shouldResync } from './roomReducer';
 
 type RoomSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -43,23 +43,28 @@ export function useRoom(token: string) {
     };
 
     async function resync(socket: RoomSocket) {
-      const res: Ack<RoomState> = await socket.timeout(ACK_TIMEOUT_MS).emitWithAck('room:sync', {});
-      if (res.ok) dispatch({ type: 'state', state: res.data });
+      try {
+        const res: Ack<RoomState> = await socket.timeout(ACK_TIMEOUT_MS).emitWithAck('room:sync', {});
+        if (res.ok) dispatch({ type: 'state', state: res.data });
+      } catch {
+        // sync timed out too: the next reconnect sends a fresh room:state anyway
+      }
     }
 
-    async function settle<T>(socket: RoomSocket, pending: Promise<Ack<T>>): Promise<void> {
+    async function settle<T>(socket: RoomSocket, pending: Promise<Ack<T>>, action: 'swipe' | 'other' = 'other') {
+      let code: string | null = null;
       try {
         const res = await pending;
         if (res.ok) {
           dispatch({ type: 'error', message: null });
-        } else if (RESYNC_CODES.has(res.error.code)) {
-          await resync(socket);
-        } else {
-          dispatch({ type: 'error', message: res.error.message });
+          return;
         }
+        code = res.error.code;
+        if (!RESYNC_CODES.has(code)) dispatch({ type: 'error', message: res.error.message });
       } catch {
         dispatch({ type: 'error', message: 'The server did not respond, try again' });
       }
+      if (shouldResync(action, code)) await resync(socket);
     }
 
     return {
@@ -75,7 +80,7 @@ export function useRoom(token: string) {
         const s = connected();
         if (!s) return;
         dispatch({ type: 'swiped', movieId });
-        await settle(s, s.timeout(ACK_TIMEOUT_MS).emitWithAck('swipe', { movieId, liked }));
+        await settle(s, s.timeout(ACK_TIMEOUT_MS).emitWithAck('swipe', { movieId, liked }), 'swipe');
       },
       async leave() {
         const s = connected();
