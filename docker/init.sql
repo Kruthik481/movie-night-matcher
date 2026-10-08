@@ -1,0 +1,1 @@
+CREATE DATABASE mnm_test;

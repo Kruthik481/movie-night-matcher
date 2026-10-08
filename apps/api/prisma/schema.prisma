@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RoomStatus {
+  LOBBY
+  SWIPING
+  MATCHED
+}
+
+model Room {
+  id             String     @id @default(cuid())
+  code           String     @unique
+  hostId         String
+  filters        Json
+  deck           Int[]
+  page           Int        @default(1)
+  status         RoomStatus @default(LOBBY)
+  matchedMovieId Int?
+  createdAt      DateTime   @default(now())
+  members        Member[]
+  swipes         Swipe[]
+
+  @@index([createdAt])
+}
+
+model Member {
+  id       String   @id @default(cuid())
+  roomId   String
+  room     Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  nickname String
+  isActive Boolean  @default(true)
+  joinedAt DateTime @default(now())
+  swipes   Swipe[]
+
+  @@unique([roomId, nickname])
+}
+
+model Swipe {
+  roomId    String
+  memberId  String
+  movieId   Int
+  liked     Boolean
+  createdAt DateTime @default(now())
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, memberId, movieId])
+  @@index([roomId, movieId])
+}
