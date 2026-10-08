@@ -154,3 +154,14 @@ Accounts and history, multi-instance with Redis adapter, chat, threshold matchin
 
 - Live web + API deploys.
 - README with architecture diagram and a short write-up of the race-safe match detection.
+
+## Revisions (2026-10-08, during planning)
+
+- npm workspaces instead of pnpm (pnpm not installed; Node 25 dropped corepack).
+- Presence changes broadcast a fresh `room:state` to everyone instead of `member:joined` / `member:left`.
+- New client event `room:sync`: ack returns the caller's snapshot; used to resync after a rejected stale swipe.
+- Server enforces swipe order: a new swipe must be for `deck[mySwipeCount]` (`409 OUT_OF_ORDER`).
+- Host handoff: when the host goes inactive, the earliest-joined active member becomes host.
+- New env `TMDB_BASE_URL` (default `https://api.themoviedb.org/3`) for the E2E fake TMDB.
+- Empty deck → `422 NO_MOVIES`; rooms cap at 10 members → `409 ROOM_FULL`.
+- v1 exhausted-deck UI offers "Load 20 more" (same filters, next page); the API already accepts new filters.
