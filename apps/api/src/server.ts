@@ -13,6 +13,8 @@ import { createSwipeService, type SwipeService } from './swipes/service';
 import type { TmdbClient } from './tmdb/client';
 
 const DEFAULT_RATE_LIMIT_MAX = 20;
+// a full deck is ~20 cards plus prefetches per person; 300/min leaves headroom for a 10-person room on one IP
+const DEFAULT_MOVIE_RATE_LIMIT_MAX = 300;
 
 export type { IO } from './realtime/gateway';
 
@@ -24,6 +26,7 @@ export type ServerDeps = {
   region: string;
   logger?: boolean;
   rateLimitMax?: number;
+  movieRateLimitMax?: number;
   graceMs?: number;
   swipesPerSecond?: number;
   now?: () => Date;
@@ -56,6 +59,8 @@ export async function createServer(deps: ServerDeps) {
   });
 
   const limited = { rateLimit: { max: deps.rateLimitMax ?? DEFAULT_RATE_LIMIT_MAX, timeWindow: '1 minute' } };
+  // TMDB-backed routes spend the server's TMDB quota, so a scan from one IP must not starve real rooms
+  const movieLimited = { rateLimit: { max: deps.movieRateLimitMax ?? DEFAULT_MOVIE_RATE_LIMIT_MAX, timeWindow: '1 minute' } };
 
   app.get('/health', async () => ({ ok: true }));
 
@@ -70,9 +75,9 @@ export async function createServer(deps: ServerDeps) {
     return reply.status(201).send(await rooms.joinRoom(code, nickname));
   });
 
-  app.get('/movies/:id', async (req) => tmdb.movie(MovieParams.parse(req.params).id));
+  app.get('/movies/:id', { config: movieLimited }, async (req) => tmdb.movie(MovieParams.parse(req.params).id));
 
-  app.get('/movies/:id/providers', async (req) => {
+  app.get('/movies/:id/providers', { config: movieLimited }, async (req) => {
     const { id } = MovieParams.parse(req.params);
     const query = ProvidersQuery.parse(req.query);
     return tmdb.providers(id, query.region ?? region);

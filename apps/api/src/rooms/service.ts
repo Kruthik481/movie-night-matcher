@@ -121,8 +121,7 @@ export function createRoomService({
     if (!isExhausted(await roundCounts(prisma, roomId), room.deck.length)) throw deckNotFinished();
 
     const nextFilters = filters ?? FiltersSchema.parse(room.filters);
-    const page = filters ? 1 : room.page + 1;
-    const deck = await tmdb.discover(nextFilters, page);
+    const { deck, page } = await nextDeck(nextFilters, filters ? 1 : room.page + 1);
     if (deck.length === 0) throw noMovies();
 
     await prisma.$transaction(async (tx) => {
@@ -169,15 +168,27 @@ export function createRoomService({
     };
   }
 
-  async function handOffHost(roomId: string, leavingId: string): Promise<void> {
-    const room = await prisma.room.findUnique({ where: { id: roomId }, select: { hostId: true } });
-    if (room?.hostId !== leavingId) return;
-    const next = await prisma.member.findFirst({
-      where: { roomId, isActive: true },
-      orderBy: { joinedAt: 'asc' },
-      select: { id: true },
+  /** A page past the end of the results wraps to page 1, so "load more" never dead-ends on narrow filters. */
+  async function nextDeck(filters: Filters, page: number): Promise<{ deck: number[]; page: number }> {
+    const deck = await tmdb.discover(filters, page);
+    if (deck.length > 0 || page === 1) return { deck, page };
+    return { deck: await tmdb.discover(filters, 1), page: 1 };
+  }
+
+  /** Whenever presence changes, make sure the host is an active member if anyone is active. */
+  async function ensureHost(roomId: string): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      const room = await lockRoom(tx, roomId);
+      if (!room) return;
+      const host = await tx.member.findUnique({ where: { id: room.hostId }, select: { isActive: true } });
+      if (host?.isActive) return;
+      const next = await tx.member.findFirst({
+        where: { roomId, isActive: true },
+        orderBy: { joinedAt: 'asc' },
+        select: { id: true },
+      });
+      if (next) await tx.room.update({ where: { id: roomId }, data: { hostId: next.id } });
     });
-    if (next) await prisma.room.update({ where: { id: roomId }, data: { hostId: next.id } });
   }
 
   async function setMemberActive(roomId: string, memberId: string, isActive: boolean): Promise<boolean> {
@@ -185,7 +196,7 @@ export function createRoomService({
       where: { id: memberId, roomId, isActive: !isActive },
       data: { isActive },
     });
-    if (count > 0 && !isActive) await handOffHost(roomId, memberId);
+    if (count > 0) await ensureHost(roomId);
     return count > 0;
   }
 

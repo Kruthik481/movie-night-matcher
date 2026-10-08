@@ -169,6 +169,17 @@ describe('presence', () => {
     expect(ben.isActive).toBe(true);
   });
 
+  it('reactivates a connected member whose seat was marked inactive, then records the swipe', async () => {
+    const srv = await boot();
+    const { clients } = await roomWith(srv, ['ben']);
+    await startSwiping(clients);
+    await srv.prisma.member.updateMany({ where: { nickname: 'ben' }, data: { isActive: false } });
+    expect(await clients.ben!.emitWithAck('swipe', { movieId: 11, liked: true })).toMatchObject({
+      ok: true,
+      data: { movieId: 11, likes: 1, needed: 2 },
+    });
+  });
+
   it('room:leave deactivates immediately and hands off host', async () => {
     const srv = await boot({ graceMs: 10_000 });
     const { clients } = await roomWith(srv, ['ben']);

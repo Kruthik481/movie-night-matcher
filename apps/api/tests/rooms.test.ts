@@ -134,10 +134,18 @@ describe('restartRoom', () => {
     expect(await prisma.room.findUniqueOrThrow({ where: { id: roomId } })).toMatchObject({ deck: [66], filters });
   });
 
-  it('rejects non-hosts, non-swiping rooms and empty next pages', async () => {
+  it('starts over from page 1 when the next page is empty', async () => {
     const { roomId, memberIds } = await seedRoom(prisma, { deck: [11] });
     await finishDeck(roomId);
-    const { rooms } = service({ decks: [[11]] });
+    await service({ decks: [[11]] }).rooms.restartRoom(roomId, memberIds[0]!);
+    expect(await prisma.room.findUniqueOrThrow({ where: { id: roomId } })).toMatchObject({ deck: [11], page: 1 });
+    expect(await prisma.swipe.count({ where: { roomId } })).toBe(0);
+  });
+
+  it('rejects non-hosts, non-swiping rooms and filters with no movies at all', async () => {
+    const { roomId, memberIds } = await seedRoom(prisma, { deck: [11] });
+    await finishDeck(roomId);
+    const { rooms } = service({ decks: [[]] });
     await expect(rooms.restartRoom(roomId, memberIds[1]!)).rejects.toMatchObject({ code: 'NOT_HOST' });
     await expect(rooms.restartRoom(roomId, memberIds[0]!)).rejects.toMatchObject({ code: 'NO_MOVIES' });
     const lobby = await seedRoom(prisma, { status: 'LOBBY' });
@@ -190,6 +198,16 @@ describe('setMemberActive', () => {
     const { roomId, memberIds } = await seedRoom(prisma, { nicknames: ['ana', 'ben', 'cal'] });
     const [ana, ben] = memberIds as [string, string, string];
     await service().rooms.setMemberActive(roomId, ana, false);
+    expect((await prisma.room.findUniqueOrThrow({ where: { id: roomId } })).hostId).toBe(ben);
+  });
+
+  it('gives host to a returning member after the host went inactive with nobody left', async () => {
+    const { roomId, memberIds } = await seedRoom(prisma);
+    const [ana, ben] = memberIds as [string, string];
+    const { rooms } = service();
+    await rooms.setMemberActive(roomId, ben, false);
+    await rooms.setMemberActive(roomId, ana, false);
+    await rooms.setMemberActive(roomId, ben, true);
     expect((await prisma.room.findUniqueOrThrow({ where: { id: roomId } })).hostId).toBe(ben);
   });
 

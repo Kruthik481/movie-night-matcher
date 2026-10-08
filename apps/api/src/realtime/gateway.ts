@@ -140,7 +140,14 @@ export function attachRealtime(io: IO, deps: RealtimeDeps): { close(): void } {
 
     socket.on('swipe', handler(SwipeEventSchema, async ({ movieId, liked }) => {
       if (isRateLimited()) throw new AppError(429, 'RATE_LIMITED', 'Slow down a little');
-      const result = await swipes.recordSwipe({ roomId, memberId, movieId, liked });
+      const record = () => swipes.recordSwipe({ roomId, memberId, movieId, liked });
+      const result = await record().catch(async (err: unknown) => {
+        if (!(err instanceof AppError && err.code === 'MEMBER_INACTIVE')) throw err;
+        // this socket is live, so the seat was dropped by a stale grace timer or another tab's leave
+        await rooms.setMemberActive(roomId, memberId, true);
+        await broadcastState(roomId);
+        return record();
+      });
       const progress = { movieId, likes: result.likes, needed: result.needed };
       io.to(channel(roomId)).emit('swipe:progress', progress);
       emitOutcome(roomId, result);

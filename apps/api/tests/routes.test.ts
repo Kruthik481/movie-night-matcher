@@ -12,9 +12,17 @@ const tokens = createTokenService(TEST_JWT_SECRET);
 let app: FastifyInstance;
 let tmdb: ReturnType<typeof stubTmdb>;
 
-async function build(rateLimitMax = 100) {
+async function build(rateLimitMax = 100, movieRateLimitMax = 1000) {
   tmdb = stubTmdb();
-  ({ app } = await createServer({ prisma, tokens, tmdb, webOrigin: 'http://localhost:3000', region: 'IN', rateLimitMax }));
+  ({ app } = await createServer({
+    prisma,
+    tokens,
+    tmdb,
+    webOrigin: 'http://localhost:3000',
+    region: 'IN',
+    rateLimitMax,
+    movieRateLimitMax,
+  }));
 }
 
 beforeEach(async () => {
@@ -88,6 +96,17 @@ describe('GET /movies', () => {
   it('returns a movie card', async () => {
     const res = await app.inject({ url: '/movies/42' });
     expect(res.json()).toMatchObject({ id: 42, title: 'Movie 42' });
+  });
+
+  it('rate limits movie and provider lookups so a scan cannot burn the TMDB quota', async () => {
+    await app.close();
+    await build(100, 2);
+    await app.inject({ url: '/movies/1' });
+    await app.inject({ url: '/movies/2' });
+    expect((await app.inject({ url: '/movies/2/providers' })).statusCode).toBe(200);
+    const res = await app.inject({ url: '/movies/3' });
+    expect(res.statusCode).toBe(429);
+    expect(res.json().error.code).toBe('RATE_LIMITED');
   });
 
   it('rejects a non-numeric id', async () => {
