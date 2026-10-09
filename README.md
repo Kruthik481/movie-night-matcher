@@ -2,7 +2,7 @@
 
 Swipe through movies together in real time. The first movie everyone in the room likes wins, and the match screen shows where it's streaming in India.
 
-**Live demo:** _coming soon_
+**Live demo:** [movie-night-matcher-eta.vercel.app](https://movie-night-matcher-eta.vercel.app) · API on Render (free tier: the first request after idle takes ~50s to wake)
 
 ## How it works
 
