@@ -4,21 +4,28 @@ import type { Ack, ClientToServerEvents, RoomState, ServerToClientEvents } from 
 import { useEffect, useMemo, useReducer, useRef } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { API_URL } from './api';
-import { initialRoomView, RESYNC_CODES, roomReducer, shouldResync } from './roomReducer';
+import { initialRoomView, RESYNC_CODES, roomReducer, shouldReconnect, shouldResync } from './roomReducer';
 
 type RoomSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 const ACK_TIMEOUT_MS = 8000;
+const SERVER_DROP_RETRY_MS = 1000;
 
 export function useRoom(token: string) {
   const [view, dispatch] = useReducer(roomReducer, initialRoomView);
   const socketRef = useRef<RoomSocket | null>(null);
+  const isLeavingRef = useRef(false);
 
   useEffect(() => {
     const socket: RoomSocket = io(API_URL, { auth: { token }, transports: ['websocket'] });
     socketRef.current = socket;
     socket.on('connect', () => dispatch({ type: 'connection', connection: 'open' }));
-    socket.on('disconnect', () => dispatch({ type: 'connection', connection: 'connecting' }));
+    socket.on('disconnect', (reason) => {
+      dispatch({ type: 'connection', connection: 'connecting' });
+      if (!shouldReconnect(reason, isLeavingRef.current)) return;
+      // the ref check stops a retry from reviving a socket the component already closed on unmount
+      setTimeout(() => socketRef.current === socket && socket.connect(), SERVER_DROP_RETRY_MS);
+    });
     socket.on('connect_error', (err) => {
       if (err.message !== 'ROOM_ENDED') return; // transient: socket.io keeps retrying
       dispatch({ type: 'connection', connection: 'ended' });
@@ -84,7 +91,9 @@ export function useRoom(token: string) {
       },
       async leave() {
         const s = connected();
-        if (s) await settle(s, s.timeout(ACK_TIMEOUT_MS).emitWithAck('room:leave', {}));
+        if (!s) return;
+        isLeavingRef.current = true;
+        await settle(s, s.timeout(ACK_TIMEOUT_MS).emitWithAck('room:leave', {}));
       },
     };
   }, []);

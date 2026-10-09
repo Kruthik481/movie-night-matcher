@@ -1,6 +1,6 @@
 import type { RoomState } from '@mnm/shared';
 import { describe, expect, it } from 'vitest';
-import { initialRoomView, RESYNC_CODES, roomReducer, type RoomView, shouldResync } from './roomReducer';
+import { initialRoomView, RESYNC_CODES, roomReducer, type RoomView, shouldReconnect, shouldResync } from './roomReducer';
 
 const state = (overrides: Partial<RoomState> = {}): RoomState => ({
   code: 'ABCDEF',
@@ -78,5 +78,20 @@ describe('RESYNC_CODES', () => {
     for (const code of ['NOT_IN_DECK', 'OUT_OF_ORDER', 'ROOM_NOT_SWIPING', 'MEMBER_INACTIVE']) {
       expect(RESYNC_CODES.has(code)).toBe(true);
     }
+  });
+});
+
+describe('shouldReconnect', () => {
+  it('reconnects after the server drops the socket, which socket.io never retries itself', () => {
+    expect(shouldReconnect('io server disconnect', false)).toBe(true);
+  });
+
+  it('stays closed after the member chose to leave', () => {
+    expect(shouldReconnect('io server disconnect', true)).toBe(false);
+  });
+
+  it('leaves transport drops to socket.io, which already retries them', () => {
+    expect(shouldReconnect('transport close', false)).toBe(false);
+    expect(shouldReconnect('io client disconnect', false)).toBe(false);
   });
 });

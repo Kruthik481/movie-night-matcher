@@ -29,6 +29,11 @@ export function shouldResync(action: 'swipe' | 'other', code: string | null): bo
   return action === 'swipe' || (code !== null && RESYNC_CODES.has(code));
 }
 
+/** socket.io never retries a disconnect the server initiated, so reconnect by hand unless the member left. */
+export function shouldReconnect(reason: string, isLeaving: boolean): boolean {
+  return reason === 'io server disconnect' && !isLeaving;
+}
+
 export const initialRoomView: RoomView ={ state: null, progress: {}, connection: 'connecting', error: null };
 
 const sameDeck = (a: number[] | undefined, b: number[]) => a?.length === b.length && a.every((id, i) => id === b[i]);
