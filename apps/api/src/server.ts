@@ -28,7 +28,7 @@ export type ServerDeps = {
   rateLimitMax?: number;
   movieRateLimitMax?: number;
   graceMs?: number;
-  swipesPerSecond?: number;
+  eventsPerSecond?: number;
   now?: () => Date;
 };
 
@@ -90,7 +90,7 @@ export async function createServer(deps: ServerDeps) {
     swipes,
     logger: app.log,
     graceMs: deps.graceMs,
-    swipesPerSecond: deps.swipesPerSecond,
+    eventsPerSecond: deps.eventsPerSecond,
   });
   app.addHook('preClose', async () => {
     realtime.close();

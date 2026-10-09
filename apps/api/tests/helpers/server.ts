@@ -6,7 +6,7 @@ import { createServer } from '../../src/server';
 import { createTestPrisma } from './db';
 import { stubTmdb, TEST_JWT_SECRET } from './fakes';
 
-type Options = { decks?: number[][]; graceMs?: number; swipesPerSecond?: number };
+type Options = { decks?: number[][]; graceMs?: number; eventsPerSecond?: number };
 
 export async function startTestServer(opts: Options = {}) {
   const prisma = createTestPrisma();
@@ -17,7 +17,7 @@ export async function startTestServer(opts: Options = {}) {
     webOrigin: 'http://localhost:3000',
     region: 'IN',
     graceMs: opts.graceMs ?? 100,
-    swipesPerSecond: opts.swipesPerSecond,
+    eventsPerSecond: opts.eventsPerSecond,
   });
   await app.listen({ host: '127.0.0.1', port: 0 });
   const { port } = app.server.address() as AddressInfo;

@@ -21,11 +21,11 @@ export type RealtimeDeps = {
   swipes: SwipeService;
   logger: Pick<FastifyBaseLogger, 'error'>;
   graceMs?: number;
-  swipesPerSecond?: number;
+  eventsPerSecond?: number;
 };
 
 const DEFAULT_GRACE_MS = 15_000;
-const DEFAULT_SWIPES_PER_SECOND = 10;
+const DEFAULT_EVENTS_PER_SECOND = 10;
 const RATE_WINDOW_MS = 1000;
 const EmptyPayload = z.object({});
 
@@ -48,8 +48,10 @@ function createRateLimiter(maxPerWindow: number) {
 export function attachRealtime(io: IO, deps: RealtimeDeps): { close(): void } {
   const { tokens, rooms, swipes, logger } = deps;
   const graceMs = deps.graceMs ?? DEFAULT_GRACE_MS;
-  const swipesPerSecond = deps.swipesPerSecond ?? DEFAULT_SWIPES_PER_SECOND;
+  const eventsPerSecond = deps.eventsPerSecond ?? DEFAULT_EVENTS_PER_SECOND;
   const graceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  // keyed by member, not socket, so opening more tabs does not multiply the budget
+  const limiters = new Map<string, () => boolean>();
   let isClosed = false;
 
   function toErrorBody(err: unknown) {
@@ -88,6 +90,21 @@ export function attachRealtime(io: IO, deps: RealtimeDeps): { close(): void } {
     else if (exhausted) io.to(channel(roomId)).emit('deck:exhausted');
   }
 
+  function isRateLimited(memberId: string): boolean {
+    let limiter = limiters.get(memberId);
+    if (!limiter) {
+      limiter = createRateLimiter(eventsPerSecond);
+      limiters.set(memberId, limiter);
+    }
+    return limiter();
+  }
+
+  /** Marks the member active and, if that changed the seat, re-checks matches their earlier likes may now complete. */
+  async function activate(roomId: string, memberId: string): Promise<void> {
+    if (await rooms.setMemberActive(roomId, memberId, true)) emitOutcome(roomId, await swipes.recheckMatches(roomId));
+    await broadcastState(roomId);
+  }
+
   async function deactivate(roomId: string, memberId: string): Promise<void> {
     if (!(await rooms.setMemberActive(roomId, memberId, false))) return;
     emitOutcome(roomId, await swipes.recheckMatches(roomId));
@@ -124,28 +141,30 @@ export function attachRealtime(io: IO, deps: RealtimeDeps): { close(): void } {
 
   io.on('connection', (socket) => {
     const { roomId, memberId } = socket.data;
-    const isRateLimited = createRateLimiter(swipesPerSecond);
+    const throttled = <P, R>(schema: z.ZodType<P>, fn: (payload: P) => Promise<R>) =>
+      handler(schema, async (payload: P) => {
+        if (isRateLimited(memberId)) throw new AppError(429, 'RATE_LIMITED', 'Slow down a little');
+        return fn(payload);
+      });
 
-    socket.on('room:start', handler(EmptyPayload, async () => {
+    socket.on('room:start', throttled(EmptyPayload, async () => {
       await rooms.startRoom(roomId, memberId);
       await broadcastState(roomId);
       return null;
     }));
 
-    socket.on('room:restart', handler(RestartEventSchema, async ({ filters }) => {
+    socket.on('room:restart', throttled(RestartEventSchema, async ({ filters }) => {
       await rooms.restartRoom(roomId, memberId, filters);
       await broadcastState(roomId);
       return null;
     }));
 
-    socket.on('swipe', handler(SwipeEventSchema, async ({ movieId, liked }) => {
-      if (isRateLimited()) throw new AppError(429, 'RATE_LIMITED', 'Slow down a little');
+    socket.on('swipe', throttled(SwipeEventSchema, async ({ movieId, liked }) => {
       const record = () => swipes.recordSwipe({ roomId, memberId, movieId, liked });
       const result = await record().catch(async (err: unknown) => {
         if (!(err instanceof AppError && err.code === 'MEMBER_INACTIVE')) throw err;
         // this socket is live, so the seat was dropped by a stale grace timer or another tab's leave
-        await rooms.setMemberActive(roomId, memberId, true);
-        await broadcastState(roomId);
+        await activate(roomId, memberId);
         return record();
       });
       const progress = { movieId, likes: result.likes, needed: result.needed };
@@ -154,7 +173,7 @@ export function attachRealtime(io: IO, deps: RealtimeDeps): { close(): void } {
       return progress;
     }));
 
-    socket.on('room:sync', handler(EmptyPayload, () => rooms.getSnapshot(roomId, memberId)));
+    socket.on('room:sync', throttled(EmptyPayload, () => rooms.getSnapshot(roomId, memberId)));
 
     socket.on('room:leave', handler(EmptyPayload, async () => {
       await deactivate(roomId, memberId);
@@ -165,6 +184,7 @@ export function attachRealtime(io: IO, deps: RealtimeDeps): { close(): void } {
     socket.on('disconnect', async () => {
       try {
         if (isClosed || (await hasLiveSocket(roomId, memberId))) return;
+        limiters.delete(memberId);
         scheduleDeactivation(roomId, memberId);
       } catch (err) {
         logger.error({ err, roomId, memberId }, 'disconnect handling failed');
@@ -174,13 +194,10 @@ export function attachRealtime(io: IO, deps: RealtimeDeps): { close(): void } {
     clearTimeout(graceTimers.get(memberId));
     graceTimers.delete(memberId);
     void socket.join(channel(roomId));
-    rooms
-      .setMemberActive(roomId, memberId, true)
-      .then(() => broadcastState(roomId))
-      .catch((err) => {
-        logger.error({ err, roomId, memberId }, 'connect handling failed');
-        socket.disconnect(true);
-      });
+    activate(roomId, memberId).catch((err) => {
+      logger.error({ err, roomId, memberId }, 'connect handling failed');
+      socket.disconnect(true);
+    });
   });
 
   return {
@@ -188,6 +205,7 @@ export function attachRealtime(io: IO, deps: RealtimeDeps): { close(): void } {
       isClosed = true;
       for (const timer of graceTimers.values()) clearTimeout(timer);
       graceTimers.clear();
+      limiters.clear();
     },
   };
 }

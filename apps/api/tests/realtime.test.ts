@@ -114,13 +114,23 @@ describe('swiping', () => {
   });
 
   it('throttles swipe floods per socket', async () => {
-    const srv = await boot({ swipesPerSecond: 2 });
+    const srv = await boot({ eventsPerSecond: 2 });
     const { clients } = await roomWith(srv, ['ben']);
     await startSwiping(clients);
     const send = () => clients.ana!.emitWithAck('swipe', { movieId: 11, liked: true });
     await send();
     await send();
     expect(await send()).toMatchObject({ ok: false, error: { code: 'RATE_LIMITED' } });
+  });
+
+  it('throttles every room event per member, even across tabs', async () => {
+    const srv = await boot({ eventsPerSecond: 2 });
+    const { clients, tokens } = await roomWith(srv, ['ben']);
+    const secondTab = (await connectClient(srv.url, tokens.ana!)).socket;
+    await clients.ana!.emitWithAck('room:sync', {});
+    await secondTab.emitWithAck('room:sync', {});
+    expect(await clients.ana!.emitWithAck('room:start', {})).toMatchObject({ ok: false, error: { code: 'RATE_LIMITED' } });
+    expect(await clients.ben!.emitWithAck('room:sync', {})).toMatchObject({ ok: true });
   });
 });
 
@@ -178,6 +188,18 @@ describe('presence', () => {
       ok: true,
       data: { movieId: 11, likes: 1, needed: 2 },
     });
+  });
+
+  it('re-runs the match check when a member comes back', async () => {
+    const srv = await boot();
+    const { clients, tokens } = await roomWith(srv, ['ben']);
+    await startSwiping(clients);
+    await clients.ana!.emitWithAck('swipe', { movieId: 11, liked: true });
+    closeAllClients();
+    // both seats dropped; ana's earlier like now covers the one-person room she returns to
+    await srv.prisma.member.updateMany({ data: { isActive: false } });
+    const { state } = await connectClient(srv.url, tokens.ana!);
+    expect(state).toMatchObject({ status: 'MATCHED', matchedMovieId: 11 });
   });
 
   it('room:leave deactivates immediately and hands off host', async () => {
