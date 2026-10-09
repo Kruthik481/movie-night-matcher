@@ -16,7 +16,7 @@ export function ExhaustedPanel({ isHost, onRestart }: { isHost: boolean; onResta
 
   return (
     <section className="py-8">
-      <Ticket stub={<><span>Intermission</span><span>No match yet</span></>}>
+      <Ticket stub={<><span>End of reel</span><span>No match yet</span></>}>
         <h2 className="font-display text-5xl font-extrabold leading-none text-paper-ink">Intermission</h2>
         <p className="mt-2 text-paper-ink/70">Nobody liked the same movie in this batch. Grab a snack, then try the next reel.</p>
         <div className="mt-6">
